@@ -13,7 +13,6 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.location.provider.ProviderProperties
-import android.os.Build
 import android.os.IBinder
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
@@ -41,6 +40,7 @@ class MockMyLocationService : Service() {
         private const val INTENT_ACTION_STOP = "INTENT_ACTION_STOP"
         private const val INTENT_EXTRA_LOCATION = "INTENT_EXTRA_LATITUDE"
         private const val INTENT_EXTRA_PACKAGE_NAME = "INTENT_EXTRA_PACKAGE_NAME"
+        // Mapを使うアプリで位置が入れ替わったりすることが頻繁にあるならば、この時間を短くすると安定することがある
         private const val INTERVAL = 1_000L
 
         fun start(context: Context, location: MyLocation) {
@@ -61,11 +61,11 @@ class MockMyLocationService : Service() {
 
     }
 
-    val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-    val locationManager: LocationManager by lazy {
+    private val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+    private val locationManager: LocationManager by lazy {
         getSystemService(Context.LOCATION_SERVICE) as LocationManager
     }
-    val notificationManager: NotificationManagerCompat by lazy {
+    private val notificationManager: NotificationManagerCompat by lazy {
         NotificationManagerCompat.from(applicationContext)
     }
 
@@ -142,7 +142,7 @@ class MockMyLocationService : Service() {
     private fun isMockAppEnabled(packageName: String): Boolean {
         try {
             val opsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            return opsManager.checkOp(AppOpsManager.OPSTR_MOCK_LOCATION, android.os.Process.myUid(), packageName) == AppOpsManager.MODE_ALLOWED
+            return opsManager.unsafeCheckOp(AppOpsManager.OPSTR_MOCK_LOCATION, android.os.Process.myUid(), packageName) == AppOpsManager.MODE_ALLOWED
         } catch (e: SecurityException) {
             // MOCK_LOCATIONにアプリが設定されていないとcheckOpでSecurityExceptionが発生する
             return false
@@ -205,15 +205,13 @@ class MockMyLocationService : Service() {
     }
 
     private fun registerNotificationChannelIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
-            )
-            manager.createNotificationChannel(channel)
-        }
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW
+        )
+        manager.createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {
@@ -248,13 +246,7 @@ class MockMyLocationService : Service() {
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+            // POST_NOTIFICATIONSの権限がない場合には通知しない
             return
         }
         notificationManager.notify(NOTIFICATION_ID, notification)
