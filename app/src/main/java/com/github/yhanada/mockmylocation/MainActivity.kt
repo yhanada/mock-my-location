@@ -1,10 +1,12 @@
 package com.github.yhanada.mockmylocation
 
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -28,11 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.yhanada.mockmylocation.data.DataSource
 import com.github.yhanada.mockmylocation.model.MyLocation
 import com.github.yhanada.mockmylocation.ui.theme.MockMyLocationTheme
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +57,48 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MockMyLocation(applicationContext: Context, modifier: Modifier = Modifier) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        MockMyLocationScreenWithPermissionCheck(
+            applicationContext = applicationContext,
+            modifier = modifier
+        )
+    } else {
+        MockMyLocationScreen(
+            applicationContext = applicationContext,
+            modifier = modifier
+        )
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun MockMyLocationScreenWithPermissionCheck(applicationContext: Context, modifier: Modifier = Modifier) {
+    val notificationPermissionState = rememberPermissionState(
+        android.Manifest.permission.POST_NOTIFICATIONS
+    )
+    if (notificationPermissionState.status.isGranted) {
+        MockMyLocationScreen(
+            applicationContext = applicationContext,
+            modifier = modifier
+        )
+    } else {
+        Column(
+            modifier = modifier.padding(36.dp)
+        ) {
+            Text(
+                text = "通知設定すると、位置偽装時に状態が通知エリアに表示されます。"
+            )
+            Spacer(modifier = modifier.padding(16.dp))
+            Button(onClick = { notificationPermissionState.launchPermissionRequest() }) {
+                Text("Request permission")
+            }
+        }
+    }
+}
+
+@Composable
+fun MockMyLocationScreen(applicationContext: Context, modifier: Modifier = Modifier) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val items = DataSource.getLocations()
     Column(
@@ -88,7 +134,7 @@ fun DropdownList(
     onSelected: (Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var selectedIndex by remember { mutableStateOf(0) }
+    var selectedIndex by remember { mutableIntStateOf(0) }
     Box(modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.TopStart)) {
         Text(
             items[selectedIndex].name,
